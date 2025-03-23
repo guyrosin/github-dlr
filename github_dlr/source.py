@@ -138,9 +138,6 @@ async def main(github_url, output_dir=None):
     # Stop the loading animation
     stop_loading_animation(loading_thread)
 
-    if not contents:
-        return
-
     is_single_file = isinstance(contents, dict)
     if is_single_file:
         await download_content(contents.get("download_url"), root_target_path)
