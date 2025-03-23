@@ -1,5 +1,6 @@
 import asyncio
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 import aiohttp
@@ -13,8 +14,10 @@ GITHUB_ACCESS_TOKEN_KEY = "GITHUB_ACCESS_TOKEN"
 
 load_dotenv()
 
-# Modified print to support emoji syntax
-printx = lambda input: print(emoji.emojize(input))
+
+def printx(input):
+    """Print with emoji support."""
+    return print(emoji.emojize(input))
 
 
 def normalize_github_url(github_url: str):
@@ -69,12 +72,18 @@ async def get_contents(content_url):
                     if content_type == "dir":
                         sub_content = await get_contents(content_self_url)
                         for sub_item in sub_content:
-                            sub_item["name"] = f"{content_name}/{sub_item.get('name')}"
+                            sub_item["name"] = (
+                                f"{content_name}/{sub_item.get('name', '')}"
+                            )
                             download_urls.append(sub_item)
                     elif content_type == "file":
                         download_urls.append(
                             {"name": content_name, "download_url": content_download_url}
                         )
+            else:
+                download_urls.append(
+                    {"download_url": content_url, "response": response}
+                )
     return download_urls
 
 
@@ -114,7 +123,10 @@ async def main(github_url, output_dir=None):
     root_target = repo_data.get("target")
     root_target_path = os.path.join(output_dir, root_target)
 
-    target_path = repo_data.get("target_path") + "/" + root_target
+    if target_path := repo_data.get("target_path"):
+        target_path = target_path + "/" + root_target
+    else:
+        target_path = root_target
     content_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{target_path}?ref={branch}"
 
     # Start the loading animation in a separate thread
@@ -125,6 +137,9 @@ async def main(github_url, output_dir=None):
     contents = await get_contents(content_url)
     # Stop the loading animation
     stop_loading_animation(loading_thread)
+
+    if not contents:
+        return
 
     is_single_file = isinstance(contents, dict)
     if is_single_file:
@@ -143,6 +158,12 @@ async def main(github_url, output_dir=None):
             download_url = content.get("download_url")
 
             if download_url is None:
+                continue
+            if content_path is None:
+                if response := content.get("response"):
+                    printx(
+                        f":warning: Failed to fetch content from {content_url!r}: {response.status} {response.reason}"
+                    )
                 continue
 
             # Extract the parent directory path and file from the current
@@ -163,9 +184,12 @@ async def main(github_url, output_dir=None):
 
         await asyncio.gather(*download_tasks)
 
+    try:
+        Path(root_target_path).rmdir()
+        printx(f":warning: No content found in {content_url!r}.")
+        return
+    except OSError:
+        pass
     output_str = f"\n:package: Downloaded {root_target!r} folder from repo {repo!r} "
-    if output_dir != "":
-        output_str += f"to {output_dir!r}."
-    else:
-        output_str += "to current directory."
+    output_str += "to current directory." if output_dir == "" else f"to {output_dir!r}."
     printx(output_str)
