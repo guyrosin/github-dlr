@@ -5,8 +5,13 @@ from urllib.parse import urlparse
 import aiohttp
 import emoji
 from alive_progress import alive_bar
+from dotenv import load_dotenv
 
 from github_dlr.loader import start_loading_animation, stop_loading_animation
+
+GITHUB_ACCESS_TOKEN_KEY = "GITHUB_ACCESS_TOKEN"
+
+load_dotenv()
 
 # Modified print to support emoji syntax
 printx = lambda input: print(emoji.emojize(input))
@@ -40,7 +45,11 @@ async def get_contents(content_url):
 
     download_urls = []
 
-    async with aiohttp.ClientSession() as session:
+    headers = {}
+    if access_token := os.getenv(GITHUB_ACCESS_TOKEN_KEY):
+        headers["Authorization"] = f"Bearer {access_token}"
+
+    async with aiohttp.ClientSession(headers=headers) as session:
         async with session.get(content_url) as response:
             if response.ok:
                 response = await response.json()
