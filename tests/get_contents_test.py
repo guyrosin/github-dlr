@@ -55,6 +55,13 @@ async def test_get_contents_from_dir_success(aiohttp_client):
     content_data = await get_contents(content_url)
     assert content_data == expected_content_data
 
+    content_data = await get_contents(content_url, ignore_extensions=[".zzz"])
+    assert content_data == expected_content_data
+
+    expected_content_data = []
+    content_data = await get_contents(content_url, ignore_extensions=[".md"])
+    assert content_data == expected_content_data
+
 
 @pytest.mark.asyncio
 async def test_get_content_from_file_success(aiohttp_client):

@@ -43,7 +43,7 @@ def normalize_github_url(github_url: str):
     }
 
 
-async def get_contents(content_url):
+async def get_contents(content_url, *, ignore_extensions: list[str] | None = None):
     """Extract all contents of given content url and return a 1D array."""
 
     download_urls = []
@@ -77,6 +77,11 @@ async def get_contents(content_url):
                             )
                             download_urls.append(sub_item)
                     elif content_type == "file":
+                        if ignore_extensions:
+                            if any(
+                                content_name.endswith(ext) for ext in ignore_extensions
+                            ):
+                                continue
                         download_urls.append(
                             {"name": content_name, "download_url": content_download_url}
                         )
@@ -113,7 +118,9 @@ async def download_with_progress(download_url, content_filename, bar):
     bar()
 
 
-async def main(github_url, output_dir=None):
+async def main(
+    github_url, output_dir=None, *, ignore_extensions: list[str] | None = None
+):
     """Main function."""
 
     repo_data = normalize_github_url(github_url)
@@ -134,7 +141,7 @@ async def main(github_url, output_dir=None):
     loading_thread = start_loading_animation(
         "Extracting the repository content information"
     )
-    contents = await get_contents(content_url)
+    contents = await get_contents(content_url, ignore_extensions=ignore_extensions)
     # Stop the loading animation
     stop_loading_animation(loading_thread)
 
