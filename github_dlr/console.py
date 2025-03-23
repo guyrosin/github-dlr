@@ -30,9 +30,22 @@ def cli():
         action="version",
         version=f"%(prog)s {__version__}",
     )
+    parser.add_argument(
+        "-i",
+        "--ignore-extensions",
+        nargs="+",
+        help="Ignore files with these extensions",
+        metavar="",
+    )
 
     args = parser.parse_args()
 
     if args.github_path:
         print("\r")
-        asyncio.run(main(args.github_path, output_dir=args.output))
+        asyncio.run(
+            main(
+                args.github_path,
+                output_dir=args.output,
+                ignore_extensions=args.ignore_extensions,
+            )
+        )

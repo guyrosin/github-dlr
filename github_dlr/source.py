@@ -119,7 +119,7 @@ async def download_with_progress(download_url, content_filename, bar):
 
 
 async def main(
-    github_url, output_dir=None, *, ignore_extensions: list[str] | None = None
+    github_url, output_dir: str = "", *, ignore_extensions: list[str] | None = None
 ):
     """Main function."""
 
