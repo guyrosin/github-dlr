@@ -101,6 +101,7 @@ async def download_content(download_url, output_file):
                 response.raise_for_status()
                 resp_content = await response.read()
 
+                Path(output_file).parent.mkdir(parents=True, exist_ok=True)
                 with open(output_file, mode="wb") as file:
                     file.write(resp_content)
     except BaseException:
@@ -148,7 +149,11 @@ async def main(
     is_single_file = isinstance(contents, dict)
     if is_single_file:
         await download_content(contents.get("download_url"), root_target_path)
-        printx(f"\n:package: Downloaded {root_target!r} file from repo {repo!r}.")
+        output_str = f"\n:package: Downloaded {root_target!r} file from repo {repo!r} "
+        output_str += (
+            "to current directory." if output_dir == "" else f"to {output_dir!r}."
+        )
+        printx(output_str)
         return
 
     # Create the target directory first.
