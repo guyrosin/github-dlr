@@ -20,16 +20,17 @@ cd github-dlr
 
 Use the commands
 
+Create a virtual environment using uv
 ```bash
-# Create a virtual environment using uv
 uv venv
+```
 
-# Activate the virtual environment
-source .venv/bin/activate.fish
+Activate the virtual environment
+```bash
+source .venv/bin/activate
 ```
 
 And you can deactivate the virtual environment with:
-
 ```bash
 deactivate
 ```
@@ -37,15 +38,13 @@ deactivate
 ### 3. Install Dependencies
 
 Install all dependencies including development dependencies:
-
 ```bash
-uv sync --group dev
+uv sync
 ```
 
 ### 4. Verify Installation
 
 Test that the installation works by running the CLI:
-
 ```bash
 uv run github-dlr --help
 ```
