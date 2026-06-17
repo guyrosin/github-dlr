@@ -15,6 +15,26 @@ GITHUB_ACCESS_TOKEN_KEY = "GITHUB_ACCESS_TOKEN"
 load_dotenv()
 
 
+def auth_headers():
+    """Return GitHub auth headers when a token is configured."""
+    if access_token := os.getenv(GITHUB_ACCESS_TOKEN_KEY):
+        return {"Authorization": f"Bearer {access_token}"}
+    return {}
+
+
+def failure_status(error):
+    return getattr(error, "status", error.__class__.__name__)
+
+
+def raise_for_failed_downloads(failures):
+    printx(f":warning: {len(failures)} file(s) failed:")
+    for failure in failures:
+        printx(
+            f":warning: {failure['path']} [{failure['status']}] {failure['url']}"
+        )
+    raise RuntimeError(f"{len(failures)} file(s) failed")
+
+
 def printx(input):
     """Print with emoji support."""
     return print(emoji.emojize(input))
@@ -48,11 +68,7 @@ async def get_contents(content_url, *, ignore_extensions: list[str] | None = Non
 
     download_urls = []
 
-    headers = {}
-    if access_token := os.getenv(GITHUB_ACCESS_TOKEN_KEY):
-        headers["Authorization"] = f"Bearer {access_token}"
-
-    async with aiohttp.ClientSession(headers=headers) as session:
+    async with aiohttp.ClientSession(headers=auth_headers()) as session:
         async with session.get(content_url) as response:
             if response.ok:
                 response = await response.json()
@@ -95,28 +111,33 @@ async def get_contents(content_url, *, ignore_extensions: list[str] | None = Non
 async def download_content(download_url, output_file):
     """Download a single downloadable file given a download URL."""
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(download_url) as response:
-                response.raise_for_status()
-                resp_content = await response.read()
+    async with aiohttp.ClientSession(headers=auth_headers()) as session:
+        async with session.get(download_url) as response:
+            response.raise_for_status()
+            resp_content = await response.read()
 
-                Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-                with open(output_file, mode="wb") as file:
-                    file.write(resp_content)
-    except BaseException:
-        printx(f":warning: Failed to download {download_url!r}. Skipping this file!")
+            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, mode="wb") as file:
+                file.write(resp_content)
 
 
-async def download_with_progress(download_url, content_filename, bar):
+async def download_with_progress(download_url, content_path, content_filename, bar):
     # This async task is for only to show the Alive bar progress
     # on each download completion. Without wrapping these two pieces
     # of code together in an async func, it is hard to show the visual
     # progress bar per download. This is not needed for synchronous
     # downloads. Since we are using async programming, it offer a better
     # visual output.
-    await download_content(download_url, content_filename)
-    bar()
+    try:
+        await download_content(download_url, content_filename)
+    except Exception as error:
+        return {
+            "path": content_path,
+            "url": download_url,
+            "status": failure_status(error),
+        }
+    finally:
+        bar()
 
 
 async def main(
@@ -148,7 +169,19 @@ async def main(
 
     is_single_file = isinstance(contents, dict)
     if is_single_file:
-        await download_content(contents.get("download_url"), root_target_path)
+        download_url = contents.get("download_url")
+        try:
+            await download_content(download_url, root_target_path)
+        except Exception as error:
+            raise_for_failed_downloads(
+                [
+                    {
+                        "path": root_target,
+                        "url": download_url,
+                        "status": failure_status(error),
+                    }
+                ]
+            )
         output_str = f"\n:package: Downloaded {root_target!r} file from repo {repo!r} "
         output_str += (
             "to current directory." if output_dir == "" else f"to {output_dir!r}."
@@ -160,19 +193,24 @@ async def main(
     os.makedirs(root_target_path, exist_ok=True)
 
     download_tasks = []
+    failed_downloads = []
 
     with alive_bar(len(contents), stats=None) as bar:
         for content in contents:
             content_path = content.get("name")
             download_url = content.get("download_url")
 
-            if download_url is None:
-                continue
             if content_path is None:
                 if response := content.get("response"):
-                    printx(
-                        f":warning: Failed to fetch content from {content_url!r}: {response.status} {response.reason}"
+                    failed_downloads.append(
+                        {
+                            "path": content_url,
+                            "url": download_url,
+                            "status": f"{response.status} {response.reason}",
+                        }
                     )
+                continue
+            if download_url is None:
                 continue
 
             # Extract the parent directory path and file from the current
@@ -187,11 +225,18 @@ async def main(
             bar.text(f"Downloading {content_path}")
 
             task = asyncio.create_task(
-                download_with_progress(download_url, content_filename, bar)
+                download_with_progress(
+                    download_url, content_path, content_filename, bar
+                )
             )
             download_tasks.append(task)
 
-        await asyncio.gather(*download_tasks)
+        failed_downloads.extend(
+            failure for failure in await asyncio.gather(*download_tasks) if failure
+        )
+
+    if failed_downloads:
+        raise_for_failed_downloads(failed_downloads)
 
     try:
         Path(root_target_path).rmdir()
