@@ -1,7 +1,7 @@
 import asyncio
 import os
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import aiohttp
 import emoji
@@ -28,7 +28,7 @@ def normalize_github_url(github_url: str):
         raise ValueError("Not a valid Github URL")
 
     parsed_url = urlparse(github_url)
-    github_path = parsed_url.path.split("/")
+    github_path = [unquote(part) for part in parsed_url.path.split("/")]
     owner = github_path[1]
     repo = github_path[2]
     branch = github_path[4]

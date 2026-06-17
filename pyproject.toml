@@ -1,16 +1,11 @@
 [project]
 name = "github-dlr"
-version = "0.1.2"
+version = "0.1.3"
 description = "Download individual files and folders from Github"
 authors = [{ name = "Rocktim Saikia", email = "rocktimthedev@gmail.com" }]
 requires-python = ">=3.8"
 readme = "README.md"
-keywords = [
-    "download",
-    "github",
-    "directory",
-    "gitdown",
-]
+keywords = ["download", "github", "directory", "gitdown"]
 classifiers = [
     "Environment :: Console",
     "Programming Language :: Python :: 3.8",
@@ -43,4 +38,3 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
-
